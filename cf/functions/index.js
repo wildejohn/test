@@ -14,7 +14,7 @@ gcs.interceptors.push({
 const exec = require('child-process-promise').exec;
 
 const LOCAL_TMP_FOLDER = '/tmp';
-const BUCKETNAME = "hofm-a97ed.appspot.com"
+const BUCKETNAME = "fir-flutter-app-12964.appspot.com"
 
 exports.onPartCreate = functions.database.ref('/game/{gameId}/{part}')
     .onCreate((snap, context) => {
@@ -42,17 +42,21 @@ exports.onPartCreate = functions.database.ref('/game/{gameId}/{part}')
         return result;
     });
 
-exports.joinImages = functions.database.ref('/game/{gameId}/{imageId}/part')
+// TODO: 
+// client creates posts/:id object to store ref to bucket
+// save :id in [head|body|legs] value
+exports.joinImages = functions.database.ref('/game/{gameId}/command')
     .onCreate(
         (snap, context) => {
             const gameId = context.gameId;
             const uid = context.uid;
             // Set to true when game is complete
-            if (event.data.val() === false) 
+            if (event.data.val().length <= 1) 
                 return Promise.reject(new Error("game not complete"))
 
             var gsPath1;
-            return downloadFiles(gameId, uid)
+            // Download all files from the game and merge them together
+            return downloadFiles(gameId)
                 .then(
                     paths => {
                         gsPath1 = paths[0]
@@ -82,15 +86,17 @@ exports.joinImages = functions.database.ref('/game/{gameId}/{imageId}/part')
         }
     );
 
-function downloadFiles(gameId, uid) {
+function downloadFiles(gameId) {
     const gameRef = admin.database().ref(`games/${gameId}`);
+    var gsPath1, gsPath2, gsPath3
     return gameRef.once('value')
         .then(
             snap => {
-                const g10 = Object.keys(snap.child('1').child('0').val())[0]
-                const g11 = Object.keys(snap.child('1').child('1').val())[0]
-                const g12 = Object.keys(snap.child('1').child('2').val())[0]
+                const g10 = Object.keys(snap.child('head').val())[0]
+                const g11 = Object.keys(snap.child('body').val())[0]
+                const g12 = Object.keys(snap.child('legs').val())[0]
 
+                // refs to posts
                 var p1 = getPathPromise(g10)
                 var p2 = getPathPromise(g11)
                 var p3 = getPathPromise(g12)
@@ -99,14 +105,16 @@ function downloadFiles(gameId, uid) {
             }
         ).then(
             results => {
+                // refs to storage buckets
                 console.log('Got image paths');
-                var gsPath1 = getPath(results[0])
-                var gsPath2 = getPath(results[1])
-                var gsPath3 = getPath(results[2])
+                gsPath1 = getPath(results[0])
+                gsPath2 = getPath(results[1])
+                gsPath3 = getPath(results[2])
                 var f1 = makePathsPromise(gsPath1)
                 var f2 = makePathsPromise(gsPath2)
                 var f3 = makePathsPromise(gsPath3)
 
+                // create temp dirs
                 return Promise.all([f1, f2, f3])
             },
             err => console.log("error getting image paths" , err)
@@ -117,12 +125,14 @@ function downloadFiles(gameId, uid) {
                 var f2 = getFilePromise(gsPath2)
                 var f3 = getFilePromise(gsPath3)
 
+                // download files
                 return Promise.all([f1, f2, f3])
             }, 
             err => console.log("error making temp dirs" , err)
         ).then(
             results2 => {
                 console.log("the files have been downloaded");
+                // return array of local file paths
                 return [gsPath1, gsPath2, gsPath3];
             }, 
             err => console.log("error downloading files", err)
@@ -158,8 +168,6 @@ function makePathsPromise(filePath) {
 }
 
 function getFilePromise(filePath) {
-    const tempPath = getTempFilePath(filePath);
-    // Create the temp directory where the storage file will be downloaded.
     // Download file from bucket.
     const bucket = gcs.bucket(BUCKETNAME);
     return bucket.file(filePath).download({
