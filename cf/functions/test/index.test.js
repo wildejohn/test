@@ -9,6 +9,7 @@ const projectConfig = {
     projectId: 'fir-flutter-app-12964',
     databaseURL: 'https://fir-flutter-app-12964.firebaseio.com/'
 };
+
 const test = require('firebase-functions-test')(projectConfig, './service-account-key.json');
 
 describe('Cloud Functions', () => {
