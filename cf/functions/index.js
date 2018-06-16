@@ -14,7 +14,7 @@ gcs.interceptors.push({
 const exec = require('child-process-promise').exec;
 
 const LOCAL_TMP_FOLDER = '/tmp';
-const BUCKETNAME = "fir-flutter-app-12964.appspot.com"
+const BUCKETNAME = "hom2-40e87.appspot.com"
 
 exports.onPartCreate = functions.database.ref('/game/{gameId}/{part}')
     .onCreate((snap, context) => {

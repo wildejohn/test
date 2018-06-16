@@ -5,9 +5,9 @@ const admin = require('firebase-admin');
 // Require and initialize firebase-functions-test in "online mode" with your project's
 // credentials and service account key.
 const projectConfig = {
-    storageBucket: 'my-fir-flutter-app-12964.appspot.com',
-    projectId: 'fir-flutter-app-12964',
-    databaseURL: 'https://fir-flutter-app-12964.firebaseio.com/'
+    storageBucket: 'hom2-40e87.appspot.com',
+    projectId: 'hom2-40e87',
+    databaseURL: 'https://hom2-40e87.firebaseio.com/'
 };
 
 const test = require('firebase-functions-test')(projectConfig, './service-account-key.json');
