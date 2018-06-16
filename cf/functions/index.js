@@ -16,39 +16,67 @@ const exec = require('child-process-promise').exec;
 const LOCAL_TMP_FOLDER = '/tmp';
 const BUCKETNAME = "hom2-40e87.appspot.com"
 
-exports.onPartCreate = functions.database.ref('/game/{gameId}/{part}')
+exports.onHeadCreate = functions.database.ref('/game/{gameId}/head')
     .onCreate((snap, context) => {
-        console.log('onPartCreate called with key: ', snap.key)
-        var all = new Set(["head", "body", "legs"]);
-        all.delete(snap.key)
-        // check siblings to find out what parts are still needed
-        // eg /game/1/head="head drawing"
-        var query = snap.ref.parent.orderByKey(); // children of parent, ordered by key
-        console.log('parent key: ' + snap.ref.parent.key)
-        var result = query.once("value").then((snapshot) => {
-                // eg /game/1
-                console.log('numChildren: '+snapshot.numChildren());
-                snapshot.forEach((childSnapshot) => {
-                    // eg /game/1/body
-                    var key = childSnapshot.key; // eg "body"
-                    var childData = childSnapshot.val(); //eg "body drawing"
-                    all.delete(key)
-                });
-                var command = Array.from(all)
-                // write command for next player
-                console.log("setting command:" + command)
-                return snap.ref.parent.child('command').set(command.toString())
-            });
-        return result;
+        var gameId = context.params.gameId
+        return processPartAdded(snap, gameId)
+    });
+exports.onBodyCreate = functions.database.ref('/game/{gameId}/body')
+    .onCreate((snap, context) => {
+        var gameId = context.params.gameId
+        return processPartAdded(snap, gameId)
+    });
+exports.onLegsCreate = functions.database.ref('/game/{gameId}/legs')
+    .onCreate((snap, context) => {
+        var gameId = context.params.gameId
+        return processPartAdded(snap, gameId)
     });
 
+function processPartAdded(snap, gameId) {
+    console.log('onPartCreate called with key: ', snap.key)
+    var all = new Set(["head", "body", "legs"]);
+    all.delete(snap.key)
+    // check siblings to find out what parts are still needed
+    // eg /game/1/head="head drawing"
+    var query = snap.ref.parent.orderByKey(); // children of parent, ordered by key
+    console.log('parent key: ' + snap.ref.parent.key)
+    var result = query.once("value").then((snapshot) => {
+        // eg /game/1
+        console.log('numChildren: '+ snapshot.numChildren());
+        snapshot.forEach((childSnapshot) => {
+            // eg /game/1/body
+            var key = childSnapshot.key; // eg "body"
+            var childData = childSnapshot.val(); //eg "body drawing"
+            all.delete(key)
+        });
+        var command = Array.from(all)
+        var newRef
+        // write command for next player
+        if (command.length === 2) {
+            console.log("first part drawn")
+            newRef = admin.database().ref('/inProgress').push(gameId)
+            newRef.set({
+                ref: gameId
+            })
+        }
+        if (command.length === 0) {
+            console.log("last part drawn")
+            functions.database.ref('/inProgress/' + gameId).remove()
+            newRef = admin.database().ref('/finished').push()
+            newRef.set(context.gameId)
+        }
+        console.log("setting command:" + command)
+        return snap.ref.parent.child('command').set(command.toString())
+    });
+    return result;
+}
 // TODO: 
 // client creates posts/:id object to store ref to bucket
 // save :id in [head|body|legs] value
 exports.joinImages = functions.database.ref('/game/{gameId}/command')
     .onCreate(
         (snap, context) => {
-            const gameId = context.gameId;
+            const gameId = context.params.gameId;
             const uid = context.uid;
             // Set to true when game is complete
             if (event.data.val().length <= 1) 

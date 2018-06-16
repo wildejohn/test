@@ -20,6 +20,7 @@ describe('Cloud Functions', () => {
         // This includes our cloud functions, which can now be accessed at myFunctions.makeUppercase
         // and myFunctions.addMessage
         myFunctions = require('../index');
+        admin.database().ref('inProgress').set({});
     });
 
     after(() => {
@@ -40,8 +41,8 @@ describe('Cloud Functions', () => {
         }
         it('should write command for next client in /command', () => {
             const snap = test.database.makeDataSnapshot('my drawing of a head', 'games/1/head');
-            const wrapped = test.wrap(myFunctions.onPartCreate);
-            return wrapped(snap).then(() => { return getResult() });
+            const wrapped = test.wrap(myFunctions.onHeadCreate);
+            return wrapped(snap, { params: { gameId: 1 } }).then(() => { return getResult() });
         });
     });
 
@@ -51,8 +52,8 @@ describe('Cloud Functions', () => {
         }
         function runTest() {
             const snap = test.database.makeDataSnapshot('my drawing of a body', 'games/2/body');
-            const wrapped = test.wrap(myFunctions.onPartCreate);
-            return wrapped(snap)
+            const wrapped = test.wrap(myFunctions.onBodyCreate);
+            return wrapped(snap, { params: { gameId: 2 } })
         }
         function assertSuccess() {
             return admin.database().ref('games/2/command').once('value').then((createdSnap) => {
