@@ -36,6 +36,7 @@ function processPartAdded(snap, gameId) {
     console.log('onPartCreate called with key: ', snap.key)
     var all = new Set(["head", "body", "legs"]);
     all.delete(snap.key)
+    var urls = []
     // check siblings to find out what parts are still needed
     // eg /game/1/head="head drawing"
     var query = snap.ref.parent.orderByKey(); // children of parent, ordered by key
@@ -47,6 +48,9 @@ function processPartAdded(snap, gameId) {
             // eg /game/1/body
             var key = childSnapshot.key; // eg "body"
             var childData = childSnapshot.val(); //eg "body drawing"
+            if (childData.senderPhotoUrl) {
+                urls.push(childData.senderPhotoUrl)
+            }
             all.delete(key)
         });
         var command = Array.from(all)
@@ -56,14 +60,15 @@ function processPartAdded(snap, gameId) {
             console.log("first part drawn")
             newRef = admin.database().ref('/inProgress').push(gameId)
             newRef.set({
-                ref: gameId
+                'ref': gameId,
+                'urls': urls
             })
         }
         if (command.length === 0) {
             console.log("last part drawn")
-            functions.database.ref('/inProgress/' + gameId).remove()
+            admin.database().ref('/inProgress/' + gameId).remove()
             newRef = admin.database().ref('/finished').push()
-            newRef.set(context.gameId)
+            newRef.set(gameId)
         }
         console.log("setting command:" + command)
         return snap.ref.parent.child('command').set(command.toString())
