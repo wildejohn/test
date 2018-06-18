@@ -30,6 +30,8 @@ describe('Cloud Functions', () => {
         admin.database().ref('messages').remove();
         admin.database().ref('games/1').remove();
         admin.database().ref('games/2').remove();
+        admin.database().ref('inProgress/1').remove();
+        admin.database().ref('inProgress/2').remove();
     });
 
     describe('makeHead', () => {
