@@ -68,10 +68,14 @@ function processPartAdded(snap, gameId) {
                 })
         }
         console.log("setting command:" + command)
-        return admin.database().ref('game/' + gameId + '/command').set(command.toString())
+        return Promise.all([
+            admin.database().ref('game/' + gameId + '/command').set(command.toString()),
+            saveHint(gameId, snap.key)
+        ])
     });
     return result;
 }
+
 
 exports.joinImages = functions.database.ref('/finished/{gameId}')
     .onCreate(
@@ -87,7 +91,7 @@ exports.joinImages = functions.database.ref('/finished/{gameId}')
                 ).then(
                     () => {
                         console.log("joinFrames returned");
-                        return uploadImage(gameId)
+                        return uploadImage(gameId, 'out', 'merge') //copy from temp/gameId/out.jpg to  bucket/gameId/merge.jpg
                     }
                 ).then(
                     () => {
@@ -139,11 +143,108 @@ function joinFrames(gameId) {
     return exec(cmd);
 }
 
-function uploadImage(gameId) {
-    const out = LOCAL_TMP_FOLDER + '/' + gameId + '/out.jpg'
+function uploadImage(gameId, src, dest) {
+    const out = LOCAL_TMP_FOLDER + '/' + gameId + '/' + src + '.jpg'
     console.log('image created at', out);
     const bucket = gcs.bucket(BUCKETNAME);
     return bucket.upload(out, {
-        destination: gameId + '/merge.jpg'
+        destination: gameId + '/' + dest + '.jpg'
     });
+}
+
+function saveHint(gameId, part) {
+    // Upload the hint
+    return downloadFile(gameId, part)
+        .then(
+            path => {
+                return createHint(gameId, part)
+            },
+            error => {
+                console.log("saveHint error", error);
+                return Promise.reject(new Error("saveHint error"))
+            }
+        ).then(
+            () => {
+                console.log("saveHint returned");
+                return uploadHint(gameId, part)
+            },
+            error => {
+                console.log("uploadHint error", error);
+                return Promise.reject(new Error("uploadHint error"))
+            }
+        ).then(
+            () => {
+                console.log('The hint file has been uploaded');
+                return Promise.resolve("uploaded")
+            },
+            error => {
+                console.log("upload error", error);
+                return Promise.reject(new Error("upload error"))
+            }
+        )
+}
+
+var mapper = {
+    'head': {
+        'key': 1,
+        'hint': ['south'],
+    },
+    'body': {
+        'key': 2,
+        'hint': ['north', 'south'],
+    },
+    'legs': {
+        'key': 3,
+        'hint': ['north'],
+    }
+}
+
+function downloadFile(gameId, part) {
+    var partInt = mapper[part].key
+    const path = LOCAL_TMP_FOLDER + '/' + gameId
+    return mkdirp(path)
+        .then(
+            r => {
+                console.log('Created temp dir');
+                const bucket = gcs.bucket(BUCKETNAME);
+                return bucket
+                    .file(gameId + '-' + partInt + '.jpg')
+                    .download({ destination: path + '/' + partInt + '.jpg' })
+            },
+            err => console.log("error making temp dir", err)
+        ).then(
+            r => {
+                console.log("the file has been downloaded");
+                // return array of local file paths
+                return 
+            }, 
+            err => console.log("error downloading file", err)
+        )
+}
+
+// output file like: gameId/1north.jpg
+function createHint(gameId, part) {
+    const path = LOCAL_TMP_FOLDER + '/' + gameId;
+    var partInt = mapper[part].key
+    var hintArray = mapper[part].hint
+    var execArray = Array()
+    hintArray.forEach((g) => {
+        var cmd = 'convert ' + path + '/' + partInt +  '.jpg  -gravity ' + g + ' -crop 100x5% +repage ' + path + '/' + partInt + g + '.jpg' 
+        console.log("cmd:", cmd);
+        execArray.push(exec(cmd))
+    })
+    return Promise.all(execArray)
+}
+
+
+function uploadHint(gameId, part) {
+    var partInt = mapper[part].key
+    var hintArray = mapper[part].hint
+    var execArray = Array()
+    hintArray.forEach((g) => {
+        var src = partInt + g
+        var dest = src
+        execArray.push(uploadImage(gameId, src, dest))
+    })
+    return Promise.all(execArray)
 }
